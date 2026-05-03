@@ -2,11 +2,13 @@
 #include <twai.h>
 
 void task_send(void *pvParameters);
+void task_recv(void *pvParameters); 
 static bool twai_rx_cb(twai_node_handle_t handle, const twai_rx_done_event_data_t *edata, void *user_ctx);
 
 static const char *TAG = "TWAITest";
 static uint8_t recv_buff[8] = {0};
 xQueueHandle rx_queue;
+twai_frame_t rx_frame;
 static uint8_t send_buf[8] = {0};
 
 twai_node_handle_t node_hdl = NULL;
@@ -16,7 +18,10 @@ twai_onchip_node_config_t node_config = {
         .rx = GPIO_NUM_4},
     .bit_timing = {.bitrate = 500000},
     .tx_queue_depth = 5,
-    .flags = {.enable_loopback = true}};
+    .flags = {
+      .enable_self_test = 1,
+      .enable_loopback = 1
+    }};
 twai_event_callbacks_t node_callbacks = {
     .on_rx_done = twai_rx_cb};
 
@@ -32,9 +37,10 @@ void setup()
   ESP_ERROR_CHECK(twai_node_register_event_callbacks(node_hdl, &node_callbacks, NULL));
   ESP_ERROR_CHECK(twai_node_enable(node_hdl));
 
-  rx_queue = xQueueCreate(5, sizeof(twai_frame_t));
+  rx_queue = xQueueCreate(node_config.tx_queue_depth, sizeof(twai_frame_t));
 
   xTaskCreate(task_send, "Send Task", 4096, NULL, tskIDLE_PRIORITY, NULL);
+  xTaskCreate(task_recv, "Recv Task", 4096, NULL, tskIDLE_PRIORITY + 1, NULL);
 }
 
 void loop()
@@ -66,19 +72,20 @@ void task_send(void *pvParameters)
 
 void task_recv(void *pvParameters) {
   for (;;) {
+    xQueueReceive(rx_queue, &rx_frame, portMAX_DELAY);
     Serial.printf("Recv: %03X | %02X %02X %02X %02X %02X %02X %02X %02X\r\n", rx_frame.header.id, recv_buff[0], recv_buff[1], recv_buff[2], recv_buff[3], recv_buff[4], recv_buff[5], recv_buff[6], recv_buff[7]);
   }
 }
 
 static bool twai_rx_cb(twai_node_handle_t handle, const twai_rx_done_event_data_t *edata, void *user_ctx)
 {
-  Serial.printf("Recv callback");
-  rx_frame = {
+  twai_frame_t rx_frame_to_push = {
       .buffer = recv_buff,
       .buffer_len = sizeof(recv_buff),
   };
-  if (ESP_OK == twai_node_receive_from_isr(handle, &rx_frame))
+  if (ESP_OK == twai_node_receive_from_isr(handle, &rx_frame_to_push))
   {
+    xQueueSendFromISR(rx_queue, &rx_frame_to_push, NULL);
   }
   return false;
 }
