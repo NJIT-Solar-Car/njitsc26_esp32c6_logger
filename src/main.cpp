@@ -12,7 +12,7 @@ void setup() {
   pixels.begin();
   pixels.clear();
   pixels.setBrightness(50); 
-  pinMode(INPUT_PIN, INPUT);
+  pinMode(INPUT_PIN, INPUT_PULLDOWN);
 
   if (digitalRead(INPUT_PIN) == HIGH) {
      // Set to Red
@@ -29,32 +29,102 @@ void setup() {
 
 void loop() {
   
+  
+  Serial0.write("1111111111111111111111111111111111111111111111111111111111");
+  
+  delay(4);
+  
+  
   if (digitalRead(INPUT_PIN) == HIGH) {
      
-    pixels.setPixelColor(0, pixels.Color(255, 0, 0)); 
+    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+    
+    Serial.println("I can speak"); 
   } else {
     
     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+    Serial.println("I can't speak");
   }
   
-  Serial0.write("Hello");
+  Serial0.write("1111111111111111111111111111111111111111111111111111111111");
   
+  delay(3);
+  
+  
+  if (digitalRead(INPUT_PIN) == HIGH) {
+     
+    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+    
+    Serial.println("I can speak"); 
+  } else {
+    
+    pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+    Serial.println("I can't speak");
+  }
+  
+  Serial0.write("1111111111111111111111111111111111111111111111111111111111");
+  
+  delay(2);
+  
+  
+  if (digitalRead(INPUT_PIN) == HIGH) {
+     
+    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+    
+    Serial.println("I can speak"); 
+  } else {
+    
+    pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+    Serial.println("I can't speak");
+  }
 
- if (digitalRead(INPUT_PIN) == HIGH) {
-    pixels.setPixelColor(0, pixels.Color(255, 0, 0)); 
+  Serial0.write("1111111111111111111111111111111111111111111111111111111111");
+  
+  delay(1);
+  
+  
+  if (digitalRead(INPUT_PIN) == HIGH) {
+     
+    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+    
+    Serial.println("I can speak"); 
   } else {
     
     pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+    Serial.println("I can't speak");
   }
-   
-  if(Serial.available()) {
-    char input = Serial.read(); 
-Serial.println("I read" + input);
-} else {
-Serial.println("No data available"); 
-}
+
   
+  delay(500);
+  
+  
+  if (digitalRead(INPUT_PIN) == HIGH) {
+     
+    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+    
+    Serial.println("I can speak even though you never told me to? "); 
+  } else {
+    
+    pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+    Serial.println("I can't speak even though you never told me to? ");
+  }
+
+  delay(10000);
+
+if (digitalRead(INPUT_PIN) == HIGH) {
+     
+    pixels.setPixelColor(0, pixels.Color(255, 0, 0));
+    
+    Serial.println("I can speak for some odd reason final check "); 
+  } else {
+    
+    pixels.setPixelColor(0, pixels.Color(0, 0, 0));
+    Serial.println("I can't speak even though you never told me to? ");
+  }
+
+
+  pixels.setPixelColor(0, pixels.Color(0, 0, 0));
   pixels.show();  
   
-    delay(500); 
+ 
 }
