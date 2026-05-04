@@ -16,8 +16,8 @@ twai_onchip_node_config_t node_config = {
     .bit_timing = {.bitrate = 500000},
     .tx_queue_depth = 5,
     .flags = {
-      .enable_self_test = 1,
-      .enable_loopback = 1
+      //.enable_self_test = 1,
+      //.enable_loopback = 1
     }};
 twai_event_callbacks_t node_callbacks = {
     .on_rx_done = twai_rx_cb};
