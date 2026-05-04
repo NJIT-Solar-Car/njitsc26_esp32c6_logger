@@ -18,5 +18,5 @@ void loop()
   // put your main code here, to run repeatedly:
 
   xQueueSend(tx_queue, &KBL_CCP_MONITOR2, portMAX_DELAY);
-  vTaskDelay(pdMS_TO_TICKS(5000));
+  vTaskDelay(pdMS_TO_TICKS(1000));
 }

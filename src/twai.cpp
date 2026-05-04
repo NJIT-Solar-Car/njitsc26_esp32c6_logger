@@ -13,7 +13,7 @@ twai_onchip_node_config_t node_config = {
     .io_cfg = {
         .tx = GPIO_NUM_5,
         .rx = GPIO_NUM_4},
-    .bit_timing = {.bitrate = 500000},
+    .bit_timing = {.bitrate = 1000000},
     .tx_queue_depth = 5,
     .flags = {
       //.enable_self_test = 1,
@@ -34,7 +34,7 @@ esp_err_t twai_init() {
   assert(rx_queue);
   assert(tx_queue);
 
-  xTaskCreate(task_send, "Send Task", 4096, NULL, tskIDLE_PRIORITY, NULL);
+  //xTaskCreate(task_send, "Send Task", 4096, NULL, tskIDLE_PRIORITY, NULL);
   xTaskCreate(task_recv, "Recv Task", 4096, NULL, tskIDLE_PRIORITY + 1, NULL);
   xTaskCreate(task_twai_status, "Stats Task", 4096, NULL, tskIDLE_PRIORITY + 2, NULL);
 

@@ -8,7 +8,7 @@ const twai_frame_t KBL_CCP_MONITOR2 = {
         .ide = false
     },
     .buffer = CCP_MONITOR2,
-    .buffer_len = sizeof(CCP_MONITOR2)
+    .buffer_len = 1
 };
 
 uint16_t kbl_getRPM(uint8_t data[8]) {
