@@ -15,7 +15,7 @@ const int loraRX = -1;
 const int SPI_MISO_PIN = 19; 
 const int SPI_MOSI_PIN = 23;
 const int SPI_SCLK_PIN = 18;
-const int SPI_SS_PIN   = 5;
+const int SPI_SS_PIN   = 6;
 SPIClass *fpga = NULL;
 
 static uint8_t recv_buff[8] = {0};
@@ -59,7 +59,7 @@ esp_err_t twai_init() {
   xTaskCreate(task_recv, "Recv Task", 4096, NULL, tskIDLE_PRIORITY + 1, NULL);
   xTaskCreate(task_twai_status, "Stats Task", 4096, NULL, tskIDLE_PRIORITY + 2, NULL);
 
-  Serial2.begin(9600, SERIAL_8N1, loraRX, loraTX);
+  Serial1.begin(9600, SERIAL_8N1, loraRX, loraTX);
   
   fpga = new SPIClass(HSPI); 
   
@@ -73,14 +73,17 @@ esp_err_t twai_init() {
 }
 
 void spiCommand(SPIClass *spi, byte data) {
-  //use it as you would the regular arduino SPI API
-  spi->beginTransaction(SPISettings(SPI_SCLK_PIN, MSBFIRST, SPI_MODE0));
-  digitalWrite(spi->pinSS(), LOW);  //pull SS slow to prep other end for transfer
+  
+  // Change 1000000 (1 MHz) to whatever speed your FPGA actually requires.
+  spi->beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE0));
+  
+  // BUG FIX 1: Use the global SPI_SS_PIN instead of spi->pinSS()
+  digitalWrite(SPI_SS_PIN, LOW);   // pull SS low to prep other end for transfer
   spi->transfer(data);
-  digitalWrite(spi->pinSS(), HIGH);  //pull ss high to signify end of data transfer
+  digitalWrite(SPI_SS_PIN, HIGH);  // pull SS high to signify end of data transfer
+  
   spi->endTransaction();
 }
-
 void task_send(void *pvParameters)
 {
   for (;;)
@@ -97,8 +100,8 @@ void task_send(void *pvParameters)
     //https://docs.espressif.com/projects/arduino-esp32/en/latest/api/serial.html
 
     
-    Serial2.write(tx_frame.buffer, 8);
-
+    Serial1.write(tx_frame.buffer, 8);
+    Serial1.write("Hello from NJIT Solar Car!");
     // SPI
 
     // https://docs.espressif.com/projects/arduino-esp32/en/latest/api/spi.html#arduino-api-reference
