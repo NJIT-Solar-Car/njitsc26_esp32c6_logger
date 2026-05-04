@@ -1,4 +1,22 @@
 #include <twai.h>
+#include <Arduino.h>
+#include <SPI.h> 
+
+bool twai_rx_cb(void *arg, twai_frame_t *frame);
+void task_send(void *pvParameters);
+void task_recv(void *pvParameters);
+void task_twai_status(void *pvParameters);
+
+// LORA UART
+const int loraTX = -1;
+const int loraRX = -1;
+
+
+const int SPI_MISO_PIN = 19; 
+const int SPI_MOSI_PIN = 23;
+const int SPI_SCLK_PIN = 18;
+const int SPI_SS_PIN   = 5;
+SPIClass *fpga = NULL;
 
 static uint8_t recv_buff[8] = {0};
 xQueueHandle rx_queue;
@@ -12,16 +30,19 @@ twai_node_handle_t node_hdl = NULL;
 twai_onchip_node_config_t node_config = {
     .io_cfg = {
         .tx = GPIO_NUM_5,
-        .rx = GPIO_NUM_4},
+        .rx = GPIO_NUM_4
+    },
     .bit_timing = {.bitrate = 1000000},
     .tx_queue_depth = 5,
     .flags = {
       //.enable_self_test = 1,
       //.enable_loopback = 1
-    }};
-twai_event_callbacks_t node_callbacks = {
-    .on_rx_done = twai_rx_cb};
+    }
+};
 
+twai_event_callbacks_t node_callbacks = {
+    .on_rx_done = twai_rx_cb
+};
 
 esp_err_t twai_init() {
   ESP_ERROR_CHECK(twai_new_node_onchip(&node_config, &node_hdl));
@@ -38,7 +59,26 @@ esp_err_t twai_init() {
   xTaskCreate(task_recv, "Recv Task", 4096, NULL, tskIDLE_PRIORITY + 1, NULL);
   xTaskCreate(task_twai_status, "Stats Task", 4096, NULL, tskIDLE_PRIORITY + 2, NULL);
 
+  Serial2.begin(9600, SERIAL_8N1, loraRX, loraTX);
+  
+  fpga = new SPIClass(HSPI); 
+  
+  
+  fpga->begin(SPI_SCLK_PIN, SPI_MISO_PIN, SPI_MOSI_PIN, SPI_SS_PIN); 
+
+  pinMode(SPI_SS_PIN, OUTPUT);
+  digitalWrite(SPI_SS_PIN, HIGH);
+
   return ESP_OK;
+}
+
+void spiCommand(SPIClass *spi, byte data) {
+  //use it as you would the regular arduino SPI API
+  spi->beginTransaction(SPISettings(SPI_SCLK_PIN, MSBFIRST, SPI_MODE0));
+  digitalWrite(spi->pinSS(), LOW);  //pull SS slow to prep other end for transfer
+  spi->transfer(data);
+  digitalWrite(spi->pinSS(), HIGH);  //pull ss high to signify end of data transfer
+  spi->endTransaction();
 }
 
 void task_send(void *pvParameters)
@@ -53,6 +93,25 @@ void task_send(void *pvParameters)
 
     ESP_LOGI(TAG, "Send: %03X | %02X %02X %02X %02X %02X %02X %02X %02X", tx_frame.header.id, tx_frame.buffer[0], tx_frame.buffer[1], tx_frame.buffer[2], tx_frame.buffer[3], tx_frame.buffer[4], tx_frame.buffer[5], tx_frame.buffer[6], tx_frame.buffer[7]);
 
+    // LORA CODE:
+    //https://docs.espressif.com/projects/arduino-esp32/en/latest/api/serial.html
+
+    
+    Serial2.write(tx_frame.buffer, 8);
+
+    // SPI
+
+    // https://docs.espressif.com/projects/arduino-esp32/en/latest/api/spi.html#arduino-api-reference
+
+
+    spiCommand(fpga, tx_frame.buffer[0]);
+    spiCommand(fpga, tx_frame.buffer[1]);
+    spiCommand(fpga, tx_frame.buffer[2]);
+    spiCommand(fpga, tx_frame.buffer[3]);
+    spiCommand(fpga, tx_frame.buffer[4]);
+    spiCommand(fpga, tx_frame.buffer[5]);
+    spiCommand(fpga, tx_frame.buffer[6]);
+    spiCommand(fpga, tx_frame.buffer[7]);
     // vTaskDelay(pdMS_TO_TICKS(1000));
   }
 }
@@ -61,7 +120,9 @@ void task_recv(void *pvParameters) {
   for (;;) {
     xQueueReceive(rx_queue, &rx_frame, portMAX_DELAY);
     ESP_LOGI(TAG, "Recv: %03X | %02X %02X %02X %02X %02X %02X %02X %02X", rx_frame.header.id, recv_buff[0], recv_buff[1], recv_buff[2], recv_buff[3], recv_buff[4], recv_buff[5], recv_buff[6], recv_buff[7]);
+
   }
+
 }
 
 void task_twai_status(void *pvParameters) {
