@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <twai.h>
+#include <kbl/kbl.h>
 
 static const char *TAG = "TWAITest";
 
@@ -15,4 +16,7 @@ void setup()
 void loop()
 {
   // put your main code here, to run repeatedly:
+
+  xQueueSend(tx_queue, &KBL_CCP_MONITOR2, portMAX_DELAY);
+  vTaskDelay(pdMS_TO_TICKS(5000));
 }

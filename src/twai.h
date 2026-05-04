@@ -13,3 +13,4 @@ void task_twai_status(void *pvParameters);
 static bool twai_rx_cb(twai_node_handle_t handle, const twai_rx_done_event_data_t *edata, void *user_ctx);
 
 extern xQueueHandle rx_queue;
+extern xQueueHandle tx_queue;

@@ -2,7 +2,9 @@
 
 static uint8_t recv_buff[8] = {0};
 xQueueHandle rx_queue;
+xQueueHandle tx_queue;
 twai_frame_t rx_frame;
+twai_frame_t tx_frame;
 static uint8_t send_buf[8] = {0};
 static const char *TAG = "drv_TWAI";
 
@@ -27,6 +29,10 @@ esp_err_t twai_init() {
   ESP_ERROR_CHECK(twai_node_enable(node_hdl));
 
   rx_queue = xQueueCreate(node_config.tx_queue_depth, sizeof(twai_frame_t));
+  tx_queue = xQueueCreate(node_config.tx_queue_depth, sizeof(twai_frame_t));
+
+  assert(rx_queue);
+  assert(tx_queue);
 
   xTaskCreate(task_send, "Send Task", 4096, NULL, tskIDLE_PRIORITY, NULL);
   xTaskCreate(task_recv, "Recv Task", 4096, NULL, tskIDLE_PRIORITY + 1, NULL);
@@ -39,19 +45,13 @@ void task_send(void *pvParameters)
 {
   for (;;)
   {
-    send_buf[7]++;
 
-    twai_frame_t tx_msg = {
-        .header = {
-            .id = 0x123,
-            .ide = false},
-        .buffer = send_buf,
-        .buffer_len = sizeof(send_buf)};
+    xQueueReceive(tx_queue, &tx_frame, portMAX_DELAY);
 
-    ESP_ERROR_CHECK(twai_node_transmit(node_hdl, &tx_msg, -1));
+    ESP_ERROR_CHECK(twai_node_transmit(node_hdl, &tx_frame, -1));
     ESP_ERROR_CHECK(twai_node_transmit_wait_all_done(node_hdl, -1));
 
-    ESP_LOGI(TAG, "Send: %03X | %02X %02X %02X %02X %02X %02X %02X %02X", tx_msg.header.id, send_buf[0], send_buf[1], send_buf[2], send_buf[3], send_buf[4], send_buf[5], send_buf[6], send_buf[7]);
+    ESP_LOGI(TAG, "Send: %03X | %02X %02X %02X %02X %02X %02X %02X %02X", tx_frame.header.id, tx_frame.buffer[0], tx_frame.buffer[1], tx_frame.buffer[2], tx_frame.buffer[3], tx_frame.buffer[4], tx_frame.buffer[5], tx_frame.buffer[6], tx_frame.buffer[7]);
 
     // vTaskDelay(pdMS_TO_TICKS(1000));
   }
