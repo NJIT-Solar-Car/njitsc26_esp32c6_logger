@@ -34,7 +34,7 @@ esp_err_t twai_init() {
   assert(rx_queue);
   assert(tx_queue);
 
-  //xTaskCreate(task_send, "Send Task", 4096, NULL, tskIDLE_PRIORITY, NULL);
+  xTaskCreate(task_send, "Send Task", 4096, NULL, tskIDLE_PRIORITY, NULL);
   xTaskCreate(task_recv, "Recv Task", 4096, NULL, tskIDLE_PRIORITY + 1, NULL);
   xTaskCreate(task_twai_status, "Stats Task", 4096, NULL, tskIDLE_PRIORITY + 2, NULL);
 
