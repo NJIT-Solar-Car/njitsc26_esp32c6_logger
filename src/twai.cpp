@@ -8,22 +8,25 @@ twai_frame_t tx_frame;
 static uint8_t send_buf[8] = {0};
 static const char *TAG = "drv_TWAI";
 
+static bool bus_in_recovery = false;
+
 twai_node_handle_t node_hdl = NULL;
 twai_onchip_node_config_t node_config = {
     .io_cfg = {
         .tx = GPIO_NUM_5,
         .rx = GPIO_NUM_4},
-    .bit_timing = {.bitrate = 500000},
+    .bit_timing = {.bitrate = 1000000},
     .tx_queue_depth = 5,
     .flags = {
-      //.enable_self_test = 1,
+      //.enable_self_test = 1, 
       //.enable_loopback = 1
-    }};
+      }
+    };
 twai_event_callbacks_t node_callbacks = {
     .on_rx_done = twai_rx_cb};
 
-
-esp_err_t twai_init() {
+esp_err_t twai_init()
+{
   ESP_ERROR_CHECK(twai_new_node_onchip(&node_config, &node_hdl));
   ESP_ERROR_CHECK(twai_node_register_event_callbacks(node_hdl, &node_callbacks, NULL));
   ESP_ERROR_CHECK(twai_node_enable(node_hdl));
@@ -34,9 +37,11 @@ esp_err_t twai_init() {
   assert(rx_queue);
   assert(tx_queue);
 
+  ESP_LOGI(TAG, "Initialized CANbus @ %d kbit/s", node_config.bit_timing.bitrate / 1000);
+
   xTaskCreate(task_send, "Send Task", 4096, NULL, tskIDLE_PRIORITY, NULL);
   xTaskCreate(task_recv, "Recv Task", 4096, NULL, tskIDLE_PRIORITY + 1, NULL);
-  xTaskCreate(task_twai_status, "Stats Task", 4096, NULL, tskIDLE_PRIORITY + 2, NULL);
+  xTaskCreate(task_twai_status, "Stats Task", 4096, NULL, tskIDLE_PRIORITY + 10, NULL); // hi priority as it does bus recovery
 
   return ESP_OK;
 }
@@ -48,6 +53,9 @@ void task_send(void *pvParameters)
 
     xQueueReceive(tx_queue, &tx_frame, portMAX_DELAY);
 
+    while (bus_in_recovery) {
+      vTaskDelay(pdMS_TO_TICKS(10)); // make sure the bus is working before sending
+    }
     ESP_ERROR_CHECK(twai_node_transmit(node_hdl, &tx_frame, -1));
     ESP_ERROR_CHECK(twai_node_transmit_wait_all_done(node_hdl, -1));
 
@@ -57,39 +65,60 @@ void task_send(void *pvParameters)
   }
 }
 
-void task_recv(void *pvParameters) {
-  for (;;) {
+void task_recv(void *pvParameters)
+{
+  for (;;)
+  {
     xQueueReceive(rx_queue, &rx_frame, portMAX_DELAY);
     ESP_LOGI(TAG, "Recv: %03X | %02X %02X %02X %02X %02X %02X %02X %02X", rx_frame.header.id, recv_buff[0], recv_buff[1], recv_buff[2], recv_buff[3], recv_buff[4], recv_buff[5], recv_buff[6], recv_buff[7]);
+    switch (rx_frame.header.id) {
+      case 0x73:
+      case 0x74:
+      xQueueSend(rx_kbl_queue, &rx_frame, portMAX_DELAY);
+      break;
+    }
   }
 }
 
-void task_twai_status(void *pvParameters) {
+void task_twai_status(void *pvParameters)
+{
   twai_node_status_t node_status;
   twai_node_record_t node_records;
   twai_error_state_t last_error_state = TWAI_ERROR_ACTIVE;
-  for (;;) {
+  for (;;)
+  {
     twai_node_get_info(node_hdl, &node_status, &node_records);
-    if (node_status.state != last_error_state)  {
+    if (node_status.state != last_error_state)
+    {
       last_error_state = node_status.state;
-      switch (node_status.state) {
-        case TWAI_ERROR_ACTIVE:
-          ESP_LOGI(TAG, "TWAI active");
-          break;
-        case TWAI_ERROR_WARNING:
-          ESP_LOGW(TAG, "TWAI in Error Warning state");
-          break;
-        case TWAI_ERROR_PASSIVE:
-          ESP_LOGE(TAG, "TWAI in Error Passive state!");
-          break;
-        case TWAI_ERROR_BUS_OFF:
-          ESP_LOGE(TAG, "TWAI in Bus Off state!");
-          break;
+      switch (node_status.state)
+      {
+      case TWAI_ERROR_ACTIVE:
+        ESP_LOGI(TAG, "TWAI active");
+        break;
+      case TWAI_ERROR_WARNING:
+        ESP_LOGW(TAG, "TWAI in Error Warning state");
+        break;
+      case TWAI_ERROR_PASSIVE:
+        ESP_LOGE(TAG, "TWAI in Error Passive state!");
+        break;
+      case TWAI_ERROR_BUS_OFF:
+        ESP_LOGE(TAG, "TWAI in Bus Off state! Beginning recovery.");
+        bus_in_recovery = true;
+        twai_node_recover(node_hdl);
+        while (node_status.state != TWAI_ERROR_ACTIVE)
+        {
+          twai_node_get_info(node_hdl, &node_status, &node_records);
+          vTaskDelay(pdMS_TO_TICKS(200));
+          printf(".");
+        }
+        ESP_LOGI(TAG, "TWAI Bus Recovery complete.");
+        bus_in_recovery = false;
+        break;
       }
     }
 
-    vTaskDelay(pdMS_TO_TICKS(2000));
-
+    vTaskDelay(pdMS_TO_TICKS(5));
   }
 }
 
